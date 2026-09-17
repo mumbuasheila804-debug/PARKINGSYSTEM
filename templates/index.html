@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>YEAT Parking System</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+    <header>
+        <h1>Yeat Parking System</h1>
+        <p>WELCOME TO YEAT PARKING SYSTEM</p>
+    </header>
+
+    <main>
+
+        {% if message %}
+            <section>
+                <p>{{ message }}</p>
+            </section>
+        {% endif %}
+
+
+        <section>
+
+            <h2>Vehicle Login</h2>
+
+            {% if current_user %}
+
+                <p>
+                    Logged in vehicle:
+                    <strong>{{ current_user }}</strong>
+                </p>
+
+                <br>
+
+                <form action="/logout" method="POST">
+                    <button type="submit">Logout</button>
+                </form>
+
+            {% else %}
+
+                <form action="/login" method="POST">
+
+                    <input
+                        type="text"
+                        name="license_plate"
+                        placeholder="Enter vehicle license plate"
+                        required
+                    >
+
+                    <button type="submit">Login</button>
+
+                </form>
+
+            {% endif %}
+
+        </section>
+
+
+        <section>
+
+            <h2>Parking</h2>
+
+            <form action="/check-in" method="POST">
+
+                <button type="submit">
+                    Check In
+                </button>
+
+            </form>
+
+        </section>
+
+
+        <section>
+
+            <h2>Check Out</h2>
+
+            <p>
+                When you are ready to leave, calculate your parking fee.
+            </p>
+
+            <br>
+
+            <form action="/calculate-fee" method="POST">
+
+                <button type="submit">
+                    Calculate Parking Fee
+                </button>
+
+            </form>
+
+        </section>
+
+
+        <section>
+
+            <h2>Parking Slots</h2>
+
+            <div class="parking-grid">
+
+                {% for spot, info in parking_lot.items() %}
+
+                    <div
+                        class="parking-slot
+                        {% if info['Status'] == 'Occupied' %}
+                            occupied
+                        {% else %}
+                            available
+                        {% endif %}
+                    ">
+
+                        <h3>{{ spot }}</h3>
+
+                        {% if info["Status"] == "Occupied" %}
+
+                            <p>Occupied</p>
+                            <p>{{ info["User-Assigned"] }}</p>
+
+                        {% else %}
+
+                            <p>Available</p>
+
+                        {% endif %}
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Smart Parking System</p>
+    </footer>
+
+</body>
+
+</html>

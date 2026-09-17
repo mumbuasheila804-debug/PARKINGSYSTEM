@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Parking Payment</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+    <header>
+        <h1>Parking Payment</h1>
+    </header>
+
+    <main>
+
+        <section>
+
+            <h2>Parking Details</h2>
+
+            <p>
+                Vehicle:
+                <strong>{{ vehicle }}</strong>
+            </p>
+
+            <p>
+                Parking Spot:
+                <strong>{{ spot }}</strong>
+            </p>
+
+            <p>
+                Time Parked:
+                <strong>
+                    {{ "%.2f"|format(time_parked) }} hours
+                </strong>
+            </p>
+
+            <br>
+
+            <h2>
+                Amount Due:
+                KSh {{ "%.2f"|format(fee) }}
+            </h2>
+
+            {% if message %}
+                <p>{{ message }}</p>
+            {% endif %}
+
+            <br>
+
+            <form action="/check-out" method="POST">
+
+                <input
+                    type="number"
+                    name="payment"
+                    placeholder="Enter payment amount"
+                    min="0"
+                    step="0.01"
+                    required
+                >
+
+                <button type="submit">
+                    Make Payment
+                </button>
+
+            </form>
+
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Smart Parking System</p>
+    </footer>
+
+</body>
+
+</html>
