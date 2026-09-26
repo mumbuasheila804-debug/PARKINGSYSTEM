@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>YEAT Parking System</title>
+    <title>myGari Parking System</title>
 
     <link
         rel="stylesheet"
@@ -16,8 +16,8 @@
 <body>
 
     <header>
-        <h1>Yeat Parking System</h1>
-        <p>WELCOME TO YEAT PARKING SYSTEM</p>
+        <h1>myGari Parking System</h1>
+        <p>WELCOME TO myGari PARKING SYSTEM</p>
     </header>
 
     <main>
@@ -66,47 +66,121 @@
         </section>
 
 
-        <section>
+        {% if current_user %}
 
-            <h2>Parking</h2>
-
-            <form action="/check-in" method="POST">
-
-                <button type="submit">
-                    Check In
-                </button>
-
-            </form>
-
-        </section>
+            {% set parked_spot = none %}
+            {% for spot, info in parking_lot.items() %}
+                {% if info['User-Assigned'] == current_user %}
+                    {% set parked_spot = spot %}
+                {% endif %}
+            {% endfor %}
 
 
-        <section>
+            <section>
 
-            <h2>Check Out</h2>
+                <h2>Parking</h2>
 
-            <p>
-                When you are ready to leave, calculate your parking fee.
-            </p>
+                {% if parked_spot %}
 
-            <br>
+                    <p>
+                        Your vehicle is checked in at spot
+                        <strong>{{ parked_spot }}</strong>.
+                    </p>
 
-            <form action="/calculate-fee" method="POST">
+                {% else %}
 
-                <button type="submit">
-                    Calculate Parking Fee
-                </button>
+                    <p>
+                        Select an available spot below, then check in.
+                    </p>
 
-            </form>
+                    <br>
 
-        </section>
+                    <form action="/check-in" method="POST">
+
+                        <div class="parking-grid">
+
+                            {% for spot, info in parking_lot.items() %}
+
+                                <label
+                                    class="parking-slot
+                                    {% if info['Status'] == 'Occupied' %}
+                                        occupied
+                                    {% else %}
+                                        available
+                                    {% endif %}
+                                "
+                                >
+
+                                    <input
+                                        type="radio"
+                                        name="spot"
+                                        value="{{ spot }}"
+                                        {% if info['Status'] == 'Occupied' %}
+                                            disabled
+                                        {% endif %}
+                                        required
+                                    >
+
+                                    <h3>{{ spot }}</h3>
+
+                                    {% if info["Status"] == "Occupied" %}
+
+                                        <p>Occupied</p>
+                                        <p>{{ info["User-Assigned"] }}</p>
+
+                                    {% else %}
+
+                                        <p>Available</p>
+
+                                    {% endif %}
+
+                                </label>
+
+                            {% endfor %}
+
+                        </div>
+
+                        <br>
+
+                        <button type="submit">
+                            Check In
+                        </button>
+
+                    </form>
+
+                {% endif %}
+
+            </section>
+
+
+            <section>
+
+                <h2>Check Out</h2>
+
+                <p>
+                    When you are ready to leave, calculate your parking fee.
+                </p>
+
+                <br>
+
+                <form action="/calculate-fee" method="POST">
+
+                    <button type="submit">
+                        Calculate Parking Fee
+                    </button>
+
+                </form>
+
+            </section>
+
+        {% endif %}
 
 
         <section>
 
             <h2>Parking Slots</h2>
 
-            <div class="parking-grid">
+            <div class="parking-grid readonly">
 
                 {% for spot, info in parking_lot.items() %}
 
@@ -143,7 +217,7 @@
     </main>
 
     <footer>
-        <p>Smart Parking System</p>
+        <p>myGari Parking System</p>
     </footer>
 
 </body>

@@ -49,6 +49,11 @@
                 KSh {{ "%.2f"|format(fee) }}
             </h2>
 
+            <p>
+                Please enter the exact amount shown above. Payments that
+                are too little or too much will not be accepted.
+            </p>
+
             {% if message %}
                 <p>{{ message }}</p>
             {% endif %}
@@ -60,8 +65,9 @@
                 <input
                     type="number"
                     name="payment"
-                    placeholder="Enter payment amount"
-                    min="0"
+                    placeholder="Enter exact payment amount"
+                    min="{{ fee }}"
+                    max="{{ fee }}"
                     step="0.01"
                     required
                 >
@@ -77,7 +83,7 @@
     </main>
 
     <footer>
-        <p>Smart Parking System</p>
+        <p>myGari Parking System</p>
     </footer>
 
 </body>

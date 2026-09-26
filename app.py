@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request
 import time
 
@@ -16,6 +17,7 @@ parking_lot = {
 
 current_user = None
 
+# FEE CALCULATION
 
 def calculate_fee(time_in_hours):
     if time_in_hours <= 0.5:
@@ -30,6 +32,8 @@ def calculate_fee(time_in_hours):
         return 500
 
 
+# MODULE: PARKING SLOT DISPLAY
+
 @app.route("/")
 def home():
     return render_template(
@@ -38,6 +42,7 @@ def home():
         current_user=current_user
     )
 
+# MODULE: VEHICLE REGISTRATION / LOGIN
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -50,7 +55,7 @@ def login():
 
     user_db[license_plate] = {
         "license_plate": license_plate,
-        "fees": 0.0
+        "fees": user_db.get(license_plate, {}).get("fees", 0.0)
     }
 
     current_user = license_plate
@@ -63,6 +68,9 @@ def login():
     )
 
 
+
+# MODULE: SLOT SELECTION & CHECK-IN  (also  TIME TRACKING starts here)
+
 @app.route("/check-in", methods=["POST"])
 def check_in():
     global current_user
@@ -70,28 +78,35 @@ def check_in():
     if current_user is None:
         return "Please login first."
 
+    # car is already parked
     for spot, info in parking_lot.items():
-
         if info["User-Assigned"] == current_user:
             return f"{current_user} is already parked at {spot}."
 
-    for spot, info in parking_lot.items():
+    # The user picks the spot themselves 
+    chosen_spot = request.form.get("spot")
 
-        if info["Status"] == "Available":
+    if not chosen_spot or chosen_spot not in parking_lot:
+        return "Please select a valid parking spot."
 
-            info["Status"] = "Occupied"
-            info["User-Assigned"] = current_user
-            info["Starttime"] = time.time()
+    info = parking_lot[chosen_spot]
 
-            return render_template(
-                "index.html",
-                parking_lot=parking_lot,
-                current_user=current_user,
-                message=f"{current_user} checked in at spot {spot}."
-            )
+    if info["Status"] != "Available":
+        return f"Spot {chosen_spot} is no longer available. Please pick another."
 
-    return "Parking lot is full. No spots available."
+    info["Status"] = "Occupied"
+    info["User-Assigned"] = current_user
+    info["Starttime"] = time.time()  # MODULE 4: arrival time recorded
 
+    return render_template(
+        "index.html",
+        parking_lot=parking_lot,
+        current_user=current_user,
+        message=f"{current_user} checked in at spot {chosen_spot}."
+    )
+
+
+# MODULE: PAYMENT
 
 @app.route("/calculate-fee", methods=["POST"])
 def calculate_parking_fee():
@@ -101,7 +116,6 @@ def calculate_parking_fee():
         return "Please login first."
 
     for spot, info in parking_lot.items():
-
         if info["User-Assigned"] == current_user:
 
             elapsed_seconds = time.time() - info["Starttime"]
@@ -120,6 +134,8 @@ def calculate_parking_fee():
     return f"{current_user} is not currently parked."
 
 
+# MODULE: CHECK-OUT & BARRIER CONTROL
+
 @app.route("/check-out", methods=["POST"])
 def check_out():
     global current_user
@@ -128,7 +144,6 @@ def check_out():
         return "Please login first."
 
     for spot, info in parking_lot.items():
-
         if info["User-Assigned"] == current_user:
 
             elapsed_seconds = time.time() - info["Starttime"]
@@ -153,10 +168,11 @@ def check_out():
                     message=f"Please pay the exact amount of KSh {fee:.2f}."
                 )
 
+            # transaction confirmed -> record it
             user_db[current_user]["fees"] += fee
-
             vehicle = current_user
 
+            # free up the slot (this is the "increase slots by one" step)
             info["Status"] = "Available"
             info["User-Assigned"] = ""
             info["Starttime"] = None
@@ -184,7 +200,6 @@ def logout():
         return "No vehicle is currently logged in."
 
     message = f"{current_user} logged out successfully."
-
     current_user = None
 
     return render_template(
@@ -195,15 +210,27 @@ def logout():
     )
 
 
+# MODULE: ADMIN REPORTING
+
+@app.route("/admin")
+def admin():
+    total_spots = len(parking_lot)
+    occupied = sum(1 for info in parking_lot.values() if info["Status"] == "Occupied")
+    available = total_spots - occupied
+    total_revenue = sum(u["fees"] for u in user_db.values())
+
+    return render_template(
+        "admin.html",
+        total_spots=total_spots,
+        occupied=occupied,
+        available=available,
+        total_revenue=total_revenue,
+        user_db=user_db
+    )
+
+
 if __name__ == "__main__":
     app.run(debug=True)
-
-    
-
-
-    
-    
-
 
 
 
