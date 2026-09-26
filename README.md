@@ -1,7 +1,7 @@
-#myGari  Parking System
+myGari  PARKING SYSTEM
 
 This is a flask application that implements a smart parking system. A vehicle can login to the application, select an open slot, park and pay an exact fee to exit and open the barrier.
-## Description
+## DESCRIPTION
 This application enables users to:
 
 - Login with the vehicle's plate number.
@@ -12,13 +12,13 @@ This application enables users to:
 
 - The vehicle leaves and the space is opened for other vehicles.
 - The admin gets to know the total number of vehicles and the amount paid.
-### Technologies Used
+### LANGUAGES USED
 - Python 3
 - Flask
 - jinja2 for html templates
 - Css for styling
 - Python dictionaries
-### Project Structure
+### PROJECT STRUCTURE
 .
 ├── app.py
 ├── templates
@@ -27,7 +27,7 @@ This application enables users to:
 │   └── admin.html
 └── static
 └── style.css
-### Modules
+### MODULES CREATED
 | # | Module | Location |
 |---|--------|----------|
 | 1 | Vehicle registration or login | `/login` |
