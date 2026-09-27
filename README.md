@@ -1,83 +1,89 @@
-myGari  PARKING SYSTEM
+# myGARI PARKING SYSTEM
 
-This is a flask application that implements a smart parking system. A vehicle can login to the application, select an open slot, park and pay an exact fee to exit and open the barrier.
-## DESCRIPTION
-This application enables users to:
+## Description
 
-- Login with the vehicle's plate number.
-- See a grid of all parking slots with available and occupied slots.
-- Choose which slot to park from the available slots.
-- Calculates the amount paid based on how long a vehicle is parked.
-- Accepts exact amount payment from the user.
+myGARI Parking System is a web-based smart parking management system developed using Python and Flask. The system automates parking operations by allowing vehicles to log in, view available parking spaces, select a parking slot, record arrival time, calculate parking fees, process payments, and complete checkout.
 
-- The vehicle leaves and the space is opened for other vehicles.
-- The admin gets to know the total number of vehicles and the amount paid.
-### LANGUAGES USED
-- Python 3
-- Flask
-- jinja2 for html templates
-- Css for styling
-- Python dictionaries
-### PROJECT STRUCTURE
-.
+## Technologies Used
+
+* Python 3
+* Flask
+* SQLite
+* HTML
+* CSS
+* Jinja2
+
+## Modules
+
+1. Vehicle Registration / Login
+2. Parking Slot Management
+3. Slot Selection & Check-In
+4. Time Tracking / Duration Calculation
+5. Fee Calculation
+6. Payment & Transaction Processing
+7. Check-Out & Barrier Control
+8. Admin Dashboard / Reporting
+
+## Parking Fee Structure
+
+| Parking Duration |     Fee |
+| ---------------- | ------: |
+| Up to 30 minutes |   KSh 0 |
+| Up to 2 hours    |  KSh 50 |
+| Up to 4 hours    | KSh 100 |
+| Up to 6 hours    | KSh 300 |
+| Over 6 hours     | KSh 500 |
+
+## Project Structure
+
+```text
+PARKINGSYSTEM/
+│
 ├── app.py
-├── templates
+├── database.py
+├── parking.db
+│
+├── templates/
 │   ├── index.html
 │   ├── payment.html
 │   └── admin.html
-└── static
-└── style.css
-### MODULES CREATED
-| # | Module | Location |
-|---|--------|----------|
-| 1 | Vehicle registration or login | `/login` |
-| 2 | Parking slot | `/` , `parking_lot` dictionary |
-| 3 | Slot selection and check in | `/check-in` |
-| 4 | Time tracking | Starttime |
-| 5 | Fee calculation | `calculate_fee()` |
-| 6 | Payment | `/calculate-fee` , `/check-out` |
-| 7 | Check-out and barrier control | `/check-out` |
-| 8 | Admin dashboard/reporting | `/admin` |
-This application uses the following fee schedule:
-Duration Fee
-up to 30 mins free
-up to 2 hours 50
-up to 4 hours 100
-up to 6 hours 300
-over 6 hours 500
-## How to Use
-### Requirements
-- python3.8
-- pip
-### Installation
-To install the application, run the commands below.
+│
+└── static/
+    └── style.css
+```
+
+## Installation
+
+### 1. Clone the Repository
+
 ```bash
-git clone
-cd
-# (optional) python -m venv venv
-# (optional) source venv/bin/activate
+git clone https://github.com/mumbuasheila804-debug/PARKINGSYSTEM.git
+```
+
+### 2. Open the Project Folder
+
+```bash
+cd PARKINGSYSTEM
+```
+
+### 3. Install Flask
+
+```bash
 pip install flask
 ```
-### Start the App
-To start the app, run the command below:
+
+## Running the System
+
+Run the Flask application using:
+
 ```bash
 python app.py
 ```
-Then open your browser and navigate to http://127.0.0.1:5000 .
-### Usage
-- Sign in with your vehicle plate number and click login to continue.
-- Choose an available slot from those you see on the screen and click check in.
-- After finishing parking, click calculate parking fee to calculate the amount due.
-- The application will prompt you with the time you parked, click pay to continue.
-- Make sure to pay the exact amount due and the application will clear you upon exit.
-- When you want to view the total number of vehicles and the amount paid go to the admin dashboard .
-## Known Limitations
-- The vehicle data is stored in a python dictionary and hence deleted on restarting the server.
-- Only one vehicle can be logged in at a time.
-- This application does not support multiple simultaneous users.
-- Only one user is allowed at a time.
-- The admin dashboard has no log in authentication.
 
-## License
+The application will start on:
 
-This project was developement for an assignment.
+```text
+http://127.0.0.1:5000/
+```
+
+Open the address in a web browser to access the parking system.
