@@ -1,295 +1,277 @@
 
 import sqlite3
-from datetime import datetime
+
 
 DATABASE = "parking.db"
 
 
+# MODULE: DATABASE CONNECTION
 def get_connection():
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def create_database():
+# MODULE: DATABASE INITIALIZATION
+def init_db():
     connection = get_connection()
     cursor = connection.cursor()
 
-    # Users who are currently logged in
+    # Store registered vehicles/users
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            login_time TEXT NOT NULL
+            license_plate TEXT PRIMARY KEY
         )
     """)
 
-    # Parking spaces
+    # Store parking spaces and active parking sessions
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parking_spaces (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            space_number TEXT UNIQUE NOT NULL,
+            spot_id TEXT PRIMARY KEY,
             status TEXT NOT NULL DEFAULT 'Available',
-            username TEXT,
-            start_time TEXT
+            license_plate TEXT,
+            start_time REAL
         )
     """)
 
-    # Parking history
+    # Store completed parking transactions
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parking_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
-            space_number TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            duration_minutes INTEGER NOT NULL,
-            amount_paid INTEGER NOT NULL
+            license_plate TEXT NOT NULL,
+            spot_id TEXT NOT NULL,
+            start_time REAL NOT NULL,
+            end_time REAL NOT NULL,
+            fee REAL NOT NULL
         )
     """)
 
-    # Create 20 parking spaces: A1 - A20
+    # Create 20 parking spaces
     for i in range(1, 21):
-        space_number = f"A{i}"
+        spot_id = f"A{i}"
 
         cursor.execute("""
             INSERT OR IGNORE INTO parking_spaces
-            (space_number, status)
-            VALUES (?, 'Available')
-        """, (space_number,))
+            (spot_id, status, license_plate, start_time)
+            VALUES (?, 'Available', NULL, NULL)
+        """, (spot_id,))
 
     connection.commit()
     connection.close()
 
 
-def add_user(username):
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    try:
-        login_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        cursor.execute("""
-            INSERT INTO users (username, login_time)
-            VALUES (?, ?)
-        """, (username, login_time))
-
-        connection.commit()
-        return True
-
-    except sqlite3.IntegrityError:
-        return False
-
-    finally:
-        connection.close()
-
-
-def remove_user(username):
+# MODULE: USER REGISTRATION
+def create_user_if_missing(license_plate):
     connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute("""
-        DELETE FROM users
-        WHERE username = ?
-    """, (username,))
+        INSERT OR IGNORE INTO users (license_plate)
+        VALUES (?)
+    """, (license_plate,))
 
     connection.commit()
     connection.close()
 
 
-def user_exists(username):
+# MODULE: PARKING SLOT DISPLAY
+def get_parking_lot():
     connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute("""
-        SELECT * FROM users
-        WHERE username = ?
-    """, (username,))
-
-    user = cursor.fetchone()
-
-    connection.close()
-
-    return user is not None
-
-
-def get_available_spaces():
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT * FROM parking_spaces
-        WHERE status = 'Available'
-        ORDER BY id
+        SELECT spot_id, status, license_plate, start_time
+        FROM parking_spaces
+        ORDER BY spot_id
     """)
 
-    spaces = cursor.fetchall()
-
+    rows = cursor.fetchall()
     connection.close()
 
-    return spaces
+    parking_lot = {}
+
+    for row in rows:
+        parking_lot[row["spot_id"]] = {
+            "spot_id": row["spot_id"],
+            "status": row["status"],
+            "User-Assigned": row["license_plate"],
+            "Starttime": row["start_time"]
+        }
+
+    return parking_lot
 
 
-def get_all_spaces():
+# MODULE: GET ONE PARKING SPOT
+def get_spot(spot_id):
+    if not spot_id:
+        return None
+
     connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute("""
-        SELECT * FROM parking_spaces
-        ORDER BY id
-    """)
+        SELECT spot_id, status, license_plate, start_time
+        FROM parking_spaces
+        WHERE spot_id = ?
+    """, (spot_id,))
 
-    spaces = cursor.fetchall()
-
+    row = cursor.fetchone()
     connection.close()
 
-    return spaces
+    return row
 
 
-def assign_space(username, space_number):
+# MODULE: FIND A USER'S CURRENT PARKING SPOT
+def find_spot_for_user(license_plate):
     connection = get_connection()
     cursor = connection.cursor()
 
-    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+        SELECT spot_id, status, license_plate, start_time
+        FROM parking_spaces
+        WHERE license_plate = ?
+        AND status = 'Occupied'
+    """, (license_plate,))
+
+    row = cursor.fetchone()
+    connection.close()
+
+    return row
+
+
+# MODULE: CHECK-IN / ARRIVAL RECORDING
+def check_in_spot(spot_id, license_plate, start_time):
+    connection = get_connection()
+    cursor = connection.cursor()
 
     cursor.execute("""
         UPDATE parking_spaces
         SET status = 'Occupied',
-            username = ?,
+            license_plate = ?,
             start_time = ?
-        WHERE space_number = ?
+        WHERE spot_id = ?
         AND status = 'Available'
-    """, (username, start_time, space_number))
+    """, (license_plate, start_time, spot_id))
 
     connection.commit()
-
-    success = cursor.rowcount > 0
-
     connection.close()
 
-    return success
 
-
-def get_user_space(username):
+# MODULE: CHECK-OUT / TRANSACTION RECORDING
+def complete_checkout(license_plate, spot_id, fee, end_time):
     connection = get_connection()
     cursor = connection.cursor()
 
+    # Get the original arrival time
     cursor.execute("""
-        SELECT * FROM parking_spaces
-        WHERE username = ?
-        AND status = 'Occupied'
-    """, (username,))
+        SELECT start_time
+        FROM parking_spaces
+        WHERE spot_id = ?
+        AND license_plate = ?
+    """, (spot_id, license_plate))
 
-    space = cursor.fetchone()
+    row = cursor.fetchone()
 
-    connection.close()
-
-    return space
-
-
-def calculate_fee(duration_minutes):
-    if duration_minutes <= 30:
-        return 0
-
-    elif duration_minutes <= 120:
-        return 50
-
-    elif duration_minutes <= 240:
-        return 100
-
-    elif duration_minutes <= 360:
-        return 300
-
-    else:
-        return 500
-
-
-def checkout_user(username):
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT * FROM parking_spaces
-        WHERE username = ?
-        AND status = 'Occupied'
-    """, (username,))
-
-    space = cursor.fetchone()
-
-    if space is None:
+    if row is None:
         connection.close()
-        return None
+        return False
 
-    start_time = datetime.strptime(
-        space["start_time"],
-        "%Y-%m-%d %H:%M:%S"
-    )
+    start_time = row["start_time"]
 
-    end_time = datetime.now()
-
-    duration = end_time - start_time
-    duration_minutes = int(duration.total_seconds() / 60)
-
-    amount_paid = calculate_fee(duration_minutes)
-
-    # Save the completed parking session
+    # Save completed transaction
     cursor.execute("""
         INSERT INTO parking_history
-        (
-            username,
-            space_number,
-            start_time,
-            end_time,
-            duration_minutes,
-            amount_paid
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
+        (license_plate, spot_id, start_time, end_time, fee)
+        VALUES (?, ?, ?, ?, ?)
     """, (
-        username,
-        space["space_number"],
-        space["start_time"],
-        end_time.strftime("%Y-%m-%d %H:%M:%S"),
-        duration_minutes,
-        amount_paid
+        license_plate,
+        spot_id,
+        start_time,
+        end_time,
+        fee
     ))
 
-    # Make the parking space available again
+    # Free the parking space
     cursor.execute("""
         UPDATE parking_spaces
         SET status = 'Available',
-            username = NULL,
+            license_plate = NULL,
             start_time = NULL
-        WHERE space_number = ?
-    """, (space["space_number"],))
+        WHERE spot_id = ?
+    """, (spot_id,))
 
     connection.commit()
     connection.close()
 
+    return True
+
+
+# MODULE: ADMIN REPORTING
+def get_admin_stats():
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    # Total parking spaces
+    cursor.execute("""
+        SELECT COUNT(*) AS total
+        FROM parking_spaces
+    """)
+    total_spots = cursor.fetchone()["total"]
+
+    # Occupied spaces
+    cursor.execute("""
+        SELECT COUNT(*) AS occupied
+        FROM parking_spaces
+        WHERE status = 'Occupied'
+    """)
+    occupied = cursor.fetchone()["occupied"]
+
+    # Available spaces
+    available = total_spots - occupied
+
+    # Total revenue
+    cursor.execute("""
+        SELECT COALESCE(SUM(fee), 0) AS revenue
+        FROM parking_history
+    """)
+    total_revenue = cursor.fetchone()["revenue"]
+
+    connection.close()
+
     return {
-        "space_number": space["space_number"],
-        "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
-        "duration_minutes": duration_minutes,
-        "amount_paid": amount_paid
+        "total_spots": total_spots,
+        "occupied": occupied,
+        "available": available,
+        "total_revenue": total_revenue
     }
 
 
-def get_parking_history():
+# MODULE: USER REPORTING
+def get_user_db():
     connection = get_connection()
     cursor = connection.cursor()
 
     cursor.execute("""
-        SELECT * FROM parking_history
-        ORDER BY id DESC
+        SELECT license_plate
+        FROM users
+        ORDER BY license_plate
     """)
 
-    history = cursor.fetchall()
-
+    rows = cursor.fetchall()
     connection.close()
 
-    return history
+    user_db = {}
+
+    for row in rows:
+        user_db[row["license_plate"]] = {
+            "license_plate": row["license_plate"]
+        }
+
+    return user_db
 
 
-# Create the database automatically when this file is loaded
-create_database()
+# Initialize the database
+init_db()
+
+
 
