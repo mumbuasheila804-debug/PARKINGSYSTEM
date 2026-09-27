@@ -1,24 +1,18 @@
-
 from flask import Flask, render_template, request
 import time
 
+import database as db
+
 app = Flask(__name__)
 
-user_db = {}
 
-parking_lot = {
-    f"A{i}": {
-        "Status": "Available",
-        "User-Assigned": "",
-        "Starttime": None
-    }
-    for i in range(1, 21)
-}
+db.init_db()
+
 
 current_user = None
 
-# FEE CALCULATION
 
+# MODULE: FEE CALCULATION
 def calculate_fee(time_in_hours):
     if time_in_hours <= 0.5:
         return 0
@@ -33,17 +27,16 @@ def calculate_fee(time_in_hours):
 
 
 # MODULE: PARKING SLOT DISPLAY
-
 @app.route("/")
 def home():
     return render_template(
         "index.html",
-        parking_lot=parking_lot,
+        parking_lot=db.get_parking_lot(),
         current_user=current_user
     )
 
-# MODULE: VEHICLE REGISTRATION / LOGIN
 
+# MODULE: VEHICLE REGISTRATION / LOGIN
 @app.route("/login", methods=["POST"])
 def login():
     global current_user
@@ -53,143 +46,115 @@ def login():
     if not license_plate:
         return "Please enter a license plate."
 
-    user_db[license_plate] = {
-        "license_plate": license_plate,
-        "fees": user_db.get(license_plate, {}).get("fees", 0.0)
-    }
-
+    db.create_user_if_missing(license_plate)
     current_user = license_plate
 
     return render_template(
         "index.html",
-        parking_lot=parking_lot,
+        parking_lot=db.get_parking_lot(),
         current_user=current_user,
         message=f"Welcome {current_user}!"
     )
 
 
-
-# MODULE: SLOT SELECTION & CHECK-IN  (also  TIME TRACKING starts here)
-
+# MODULE: SLOT SELECTION & CHECK-IN  (+ MODULE: TIME TRACKING starts here)
 @app.route("/check-in", methods=["POST"])
 def check_in():
-    global current_user
-
     if current_user is None:
         return "Please login first."
 
-    # car is already parked
-    for spot, info in parking_lot.items():
-        if info["User-Assigned"] == current_user:
-            return f"{current_user} is already parked at {spot}."
+    already = db.find_spot_for_user(current_user)
+    if already:
+        return f"{current_user} is already parked at {already['spot_id']}."
 
-    # The user picks the spot themselves 
     chosen_spot = request.form.get("spot")
+    row = db.get_spot(chosen_spot)
 
-    if not chosen_spot or chosen_spot not in parking_lot:
+    if row is None:
         return "Please select a valid parking spot."
 
-    info = parking_lot[chosen_spot]
-
-    if info["Status"] != "Available":
+    if row["status"] != "Available":
         return f"Spot {chosen_spot} is no longer available. Please pick another."
 
-    info["Status"] = "Occupied"
-    info["User-Assigned"] = current_user
-    info["Starttime"] = time.time()  # MODULE 4: arrival time recorded
+    db.check_in_spot(chosen_spot, current_user, time.time())  # MODULE: arrival time recorded
 
     return render_template(
         "index.html",
-        parking_lot=parking_lot,
+        parking_lot=db.get_parking_lot(),
         current_user=current_user,
         message=f"{current_user} checked in at spot {chosen_spot}."
     )
 
 
-# MODULE: PAYMENT
-
+# MODULE: PAYMENT / TRANSACTION PROCESSING (fee preview before paying)
 @app.route("/calculate-fee", methods=["POST"])
 def calculate_parking_fee():
-    global current_user
-
     if current_user is None:
         return "Please login first."
 
-    for spot, info in parking_lot.items():
-        if info["User-Assigned"] == current_user:
+    row = db.find_spot_for_user(current_user)
+    if row is None:
+        return f"{current_user} is not currently parked."
 
-            elapsed_seconds = time.time() - info["Starttime"]
-            elapsed_hours = elapsed_seconds / 3600
+    elapsed_seconds = time.time() - row["start_time"]
+    elapsed_hours = elapsed_seconds / 3600
+    fee = calculate_fee(elapsed_hours)
 
-            fee = calculate_fee(elapsed_hours)
-
-            return render_template(
-                "payment.html",
-                vehicle=current_user,
-                spot=spot,
-                time_parked=elapsed_hours,
-                fee=fee
-            )
-
-    return f"{current_user} is not currently parked."
+    return render_template(
+        "payment.html",
+        vehicle=current_user,
+        spot=row["spot_id"],
+        time_parked=elapsed_hours,
+        fee=fee
+    )
 
 
 # MODULE: CHECK-OUT & BARRIER CONTROL
-
 @app.route("/check-out", methods=["POST"])
 def check_out():
-    global current_user
-
     if current_user is None:
         return "Please login first."
 
-    for spot, info in parking_lot.items():
-        if info["User-Assigned"] == current_user:
+    row = db.find_spot_for_user(current_user)
+    if row is None:
+        return f"{current_user} is not currently parked."
 
-            elapsed_seconds = time.time() - info["Starttime"]
-            elapsed_hours = elapsed_seconds / 3600
+    spot = row["spot_id"]
+    elapsed_seconds = time.time() - row["start_time"]
+    elapsed_hours = elapsed_seconds / 3600
+    fee = calculate_fee(elapsed_hours)
 
-            fee = calculate_fee(elapsed_hours)
+    payment_text = request.form.get("payment", "0")
 
-            payment_text = request.form.get("payment", "0")
+    try:
+        payment = float(payment_text)
+    except ValueError:
+        return "Please enter a valid payment amount."
 
-            try:
-                payment = float(payment_text)
-            except ValueError:
-                return "Please enter a valid payment amount."
+    # Exact-amount check (rounded to cents to avoid float precision issues)
+    if round(payment, 2) != round(fee, 2):
+        return render_template(
+            "payment.html",
+            vehicle=current_user,
+            spot=spot,
+            time_parked=elapsed_hours,
+            fee=fee,
+            message=f"Please pay the exact amount of KSh {fee:.2f}."
+        )
 
-            if payment != fee:
-                return render_template(
-                    "payment.html",
-                    vehicle=current_user,
-                    spot=spot,
-                    time_parked=elapsed_hours,
-                    fee=fee,
-                    message=f"Please pay the exact amount of KSh {fee:.2f}."
-                )
+    db.complete_checkout(current_user, spot, fee, time.time())
 
-            # transaction confirmed -> record it
-            user_db[current_user]["fees"] += fee
-            vehicle = current_user
-
-            # free up the slot (this is the "increase slots by one" step)
-            info["Status"] = "Available"
-            info["User-Assigned"] = ""
-            info["Starttime"] = None
-
-            return render_template(
-                "index.html",
-                parking_lot=parking_lot,
-                current_user=current_user,
-                message=(
-                    f"Payment successful. "
-                    f"{vehicle} checked out of spot {spot}. "
-                    f"Amount paid: KSh {fee:.2f}. "
-                    f"Barrier opened."
-                )
-            )
-
-    return f"{current_user} is not currently parked."
+    return render_template(
+        "index.html",
+        parking_lot=db.get_parking_lot(),
+        current_user=current_user,
+        message=(
+            f"Payment successful. "
+            f"{current_user} checked out of spot {spot}. "
+            f"Amount paid: KSh {fee:.2f}. "
+            f"Barrier opened."
+        )
+    )
 
 
 @app.route("/logout", methods=["POST"])
@@ -204,38 +169,26 @@ def logout():
 
     return render_template(
         "index.html",
-        parking_lot=parking_lot,
+        parking_lot=db.get_parking_lot(),
         current_user=current_user,
         message=message
     )
 
 
-# MODULE: ADMIN REPORTING
-
+# MODULE: ADMIN DASHBOARD / REPORTING
 @app.route("/admin")
 def admin():
-    total_spots = len(parking_lot)
-    occupied = sum(1 for info in parking_lot.values() if info["Status"] == "Occupied")
-    available = total_spots - occupied
-    total_revenue = sum(u["fees"] for u in user_db.values())
+    stats = db.get_admin_stats()
 
     return render_template(
         "admin.html",
-        total_spots=total_spots,
-        occupied=occupied,
-        available=available,
-        total_revenue=total_revenue,
-        user_db=user_db
+        total_spots=stats["total_spots"],
+        occupied=stats["occupied"],
+        available=stats["available"],
+        total_revenue=stats["total_revenue"],
+        user_db=db.get_user_db()
     )
 
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-    
-
-    
-
-
